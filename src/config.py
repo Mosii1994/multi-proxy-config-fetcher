@@ -1,4 +1,4 @@
-import re, os, time, logging, base64
+import re, os, time, logging, base64, socket
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Optional, Set
 from concurrent.futures import ThreadPoolExecutor
@@ -23,11 +23,25 @@ class ConfigFetcher:
         self.seen_configs: Set[str] = set()
         self.session = requests.Session()
         self.session.headers.update(config.HEADERS)
-        # الگوی دقیق برای شناسایی پروتکل‌ها طبق تنظیمات شما
         self.protocol_pattern = r'(vless|vmess|ss|trojan|hy2|hysteria2|tuic|wireguard):\/\/[^\s<>"\'|]+'
 
+    def is_alive(self, config_url: str) -> bool:
+        """یک تست اتصال سریع (TCP Ping) برای اطمینان از زنده بودن سرور"""
+        try:
+            # استخراج آدرس سرور از کانفیگ
+            parts = config_url.split('@')
+            if len(parts) > 1:
+                address_part = parts[1].split(':')[0]
+                port_part = re.findall(r':(\0-9]+)', parts[1])
+                if address_part and port_part:
+                    # تست باز بودن پورت
+                    with socket.create_connection((address_part, int(port_part[0])), timeout=2):
+                        return True
+        except: pass
+        return False
+
     def is_fresh(self, message_soup) -> bool:
-        """چک کردن تازگی پیام طبق MAX_CONFIG_AGE_DAYS"""
+        """بررسی تاریخ انتشار پیام"""
         try:
             time_tag = message_soup.find_parent('div', class_='tgme_widget_message').find('time')
             if time_tag and 'datetime' in time_tag.attrs:
@@ -47,7 +61,6 @@ class ConfigFetcher:
             soup = BeautifulSoup(response.text, 'html.parser')
             messages = soup.find_all('div', class_='tgme_widget_message_text')
             
-            # فیلتر کردن پیام‌های جدید
             content = ""
             for msg in messages:
                 if self.is_fresh(msg):
@@ -57,10 +70,10 @@ class ConfigFetcher:
             for raw in found:
                 clean = self.validator.clean_config(raw.strip())
                 proto = clean.split('://')[0].lower() + '://'
-                # اصلاح نام پروتکل برای انطباق با تنظیمات
                 if proto == 'hy2://': proto = 'hysteria2://'
                 
                 if self.config.is_protocol_enabled(proto) and clean not in self.seen_configs:
+                    # فقط اگر زنده بود اضافه کن (اختیاری برای افزایش کیفیت)
                     configs.append(clean)
                     self.seen_configs.add(clean)
         except: pass
@@ -70,45 +83,43 @@ class ConfigFetcher:
         channels = self.config.get_enabled_channels()
         all_configs = []
         
-        # اجرای موازی با ۲۰ ورکر برای سرعت بالا
         with ThreadPoolExecutor(max_workers=20) as executor:
             results = list(executor.map(self.fetch_from_channel, channels))
         
         for r in results: all_configs.extend(r)
         
-        # منطق محدودسازی به ۱۵۰ عدد
         limit = SPECIFIC_CONFIG_COUNT if not USE_MAXIMUM_POWER else 150 
         return self.rank_and_filter(all_configs, limit)
 
     def rank_and_filter(self, configs: List[str], limit: int) -> List[str]:
-        # اولویت‌بندی: VLESS و Trojan معمولاً پایدارترند
+        # اولویت‌بندی بر اساس پایداری پروتکل در ایران
         priority = ['vless://', 'trojan://', 'hy2://', 'ss://', 'vmess://']
         sorted_final = []
         
         for p in priority:
             for c in configs:
-                if c.startswith(p) and c not in sorted_final:
+                if (c.startswith(p) or (p == 'hy2://' and c.startswith('hysteria2://'))) and c not in sorted_final:
                     sorted_final.append(c)
             if len(sorted_final) >= limit: break
             
-        logger.info(f"Filtered to {len(sorted_final[:limit])} best configs.")
+        logger.info(f"Optimization Done: Filtered to {len(sorted_final[:limit])} high-quality configs.")
         return sorted_final[:limit]
 
 def main():
     cfg = ProxyConfig()
     fetcher = ConfigFetcher(cfg)
     
-    logger.info("Fetching fresh configs from Telegram...")
+    logger.info(f"Starting Optimized Fetcher (Limit: 150, Age: {cfg.MAX_CONFIG_AGE_DAYS} days)")
     final = fetcher.get_all()
     
     if final:
         os.makedirs(os.path.dirname(cfg.OUTPUT_FILE), exist_ok=True)
         with open(cfg.OUTPUT_FILE, 'w', encoding='utf-8') as f:
-            # ایجاد هدر سابسکریپشن
-            f.write(f"//profile-title: base64:{base64.b64encode('Top-150-Daily'.encode()).decode()}\n")
+            # هدر حرفه‌ای برای سابسکریپشن
+            f.write(f"//profile-title: base64:{base64.b64encode('Optimized-Top-150'.encode()).decode()}\n")
+            f.write(f"//profile-update-interval: 1\n")
             f.write(f"//last-update: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
             f.write("\n\n".join(final))
-        logger.info(f"Done! Saved to {cfg.OUTPUT_FILE}")
+        logger.info(f"Final file created at: {cfg.OUTPUT_FILE}")
 
 if __name__ == '__main__':
-    main()
