@@ -6,16 +6,9 @@ SOURCE_URLS = [
      "https://t.me/s/ar14n24b",
      "https://t.me/s/SOSkeyNET",
      "https://t.me/s/marambashi",
-     "https://t.me/s/hamedvpns",
      "https://t.me/s/meliproxyy",
      "https://t.me/s/wiki_tajrobe",
      "https://t.me/s/persianvpnhub",
-     "https://t.me/s/sinavm",
-     "https://t.me/s/tikvpnir",
-     "https://t.me/s/v2ray_tz",
-     "https://t.me/s/capoit",
-     "https://t.me/s/free_netc",
-     "https://t.me/s/pewezavpn",
      "https://t.me/s/configraygan",
      "https://t.me/s/NetAccount",
      "https://t.me/s/IraneAzad_Net"
@@ -182,20 +175,20 @@ USE_MAXIMUM_POWER = True
 
 # Desired number of configurations to fetch.
 # This is used only if USE_MAXIMUM_POWER is False.
-SPECIFIC_CONFIG_COUNT = 500
+SPECIFIC_CONFIG_COUNT = 150
 
 # Dictionary of protocols to enable or disable.
 # Set each protocol to True to enable, False to disable.
 ENABLED_PROTOCOLS = {
-    "wireguard://": True,
-    "hysteria2://": True,
+    "wireguard://": False,
+    "hysteria2://": False,
     "vless://": True,
     "vmess://": True,
     "ss://": True,
     "trojan://": True,
-    "tuic://": True,
+    "tuic://": False,
 }
 
 # Maximum age of configurations in days.
 # Configurations older than this will be considered invalid.
-MAX_CONFIG_AGE_DAYS = 7
+MAX_CONFIG_AGE_DAYS = 2
