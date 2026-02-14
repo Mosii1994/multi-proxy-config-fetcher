@@ -146,8 +146,9 @@ class ConfigFetcher:
             return balanced
         return []
 
-    def balance_protocols(self, configs: List[str]) -> List[str]:
-        """متوازن کردن تعداد پروتکل‌ها بر اساس تنظیماتPriority"""
+def balance_protocols(self, configs: List[str]) -> List[str]:
+        """انتخاب ۱۵۰ کانفیگ برتر بر اساس اولویت پروتکل"""
+        # دسته‌بندی کانفیگ‌ها
         proto_map = {p: [] for p in self.config.SUPPORTED_PROTOCOLS}
         for c in configs:
             for p in proto_map:
@@ -155,11 +156,24 @@ class ConfigFetcher:
                     proto_map[p].append(c)
                     break
         
-        balanced = []
-        for p, list_configs in proto_map.items():
-            limit = self.config.SUPPORTED_PROTOCOLS[p].get("max_configs", 100)
-            balanced.extend(list_configs[:limit])
-        return balanced
+        # مرتب‌سازی پروتکل‌ها بر اساس اولویت (Priority) که در config.py تعریف کردی
+        sorted_protocols = sorted(
+            self.config.SUPPORTED_PROTOCOLS.items(),
+            key=lambda x: x[1].get("priority", 0),
+            reverse=True
+        )
+
+        final_selection = []
+        # جمع‌آوری از پروتکل‌های با اولویت بالا تا رسیدن به عدد ۱۵۰
+        for proto, info in sorted_protocols:
+            configs_of_this_proto = proto_map.get(proto, [])
+            final_selection.extend(configs_of_this_proto)
+            
+            if len(final_selection) >= 150:
+                break
+
+        # برگرداندن دقیقاً ۱۵۰ مورد اول (یا کمتر اگر کل موجودی کمتر بود)
+        return final_selection[:150]
 
 def save_configs(configs: List[str], config: ProxyConfig):
     try:
