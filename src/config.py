@@ -78,8 +78,7 @@ class ConfigFetcher:
                     self.seen_configs.add(clean)
         except: pass
         return configs
-
-    def get_all(self) -> List[str]:
+def get_all(self) -> List[str]:
         channels = self.config.get_enabled_channels()
         all_configs = []
         
@@ -88,22 +87,28 @@ class ConfigFetcher:
         
         for r in results: all_configs.extend(r)
         
-        limit = SPECIFIC_CONFIG_COUNT if not USE_MAXIMUM_POWER else 150 
+        # اصلاح دقیق برای محدود کردن به 150 عدد
+        limit = 150 
         return self.rank_and_filter(all_configs, limit)
 
     def rank_and_filter(self, configs: List[str], limit: int) -> List[str]:
-        # اولویت‌بندی بر اساس پایداری پروتکل در ایران
+        # اولویت‌بندی بر اساس پایداری در شبکه ایران
         priority = ['vless://', 'trojan://', 'hy2://', 'ss://', 'vmess://']
-        sorted_final = []
+        final_selection = []
         
         for p in priority:
             for c in configs:
-                if (c.startswith(p) or (p == 'hy2://' and c.startswith('hysteria2://'))) and c not in sorted_final:
-                    sorted_final.append(c)
-            if len(sorted_final) >= limit: break
+                # چک کردن پروتکل و همپوشانی با نام‌های دیگر
+                if (c.lower().startswith(p) or (p == 'hy2://' and c.lower().startswith('hysteria2://'))):
+                    if c not in final_selection:
+                        final_selection.append(c)
+                if len(final_selection) >= limit:
+                    break
+            if len(final_selection) >= limit:
+                break
             
-        logger.info(f"Optimization Done: Filtered to {len(sorted_final[:limit])} high-quality configs.")
-        return sorted_final[:limit]
+        logger.info(f"Filtered to exactly {len(final_selection)} configs.")
+        return final_selection
 
 def main():
     cfg = ProxyConfig()
